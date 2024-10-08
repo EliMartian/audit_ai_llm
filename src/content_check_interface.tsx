@@ -4,10 +4,32 @@ const ContentChecker: React.FC = () => {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    console.log('Question:', question);
-    console.log('Answer:', answer);
+  
+    const payload = {
+      question,
+      answer
+    };
+  
+    try {
+      const response = await fetch('http://localhost:5001/new_prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+  
+      if (!response.ok) {
+        throw new Error('Error occurred while submitting the form');
+      }
+  
+      const data = await response.json();
+      console.log('Response from backend:', data);
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
   return (
