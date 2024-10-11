@@ -34,7 +34,7 @@ const ContentChecker: React.FC = () => {
 
   return (
     <div className="max-w-lg mx-auto mt-10 p-6 border rounded-lg shadow-lg bg-white">
-      <h1 className="text-2xl font-bold text-center mb-6">Content Checking Interface</h1>
+      <h1 className="text-2xl font-bold text-center mb-6">AuditAI </h1>
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
           <label htmlFor="question" className="block text-sm font-medium mb-2">Question:</label>
