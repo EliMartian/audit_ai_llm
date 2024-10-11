@@ -2,21 +2,14 @@
 from flask import Flask, request, jsonify
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
-import torch
 import numpy as np
 
 app = Flask(__name__)
 
-# Load the model and tokenizer once when the app starts
+# Choose a sentence transformer model built on top of BERT for
+# better semantic understanding to compare sentence similarity
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
 model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-
-# def get_embedding(sentence):
-#     inputs = tokenizer(sentence, return_tensors="pt")
-#     with torch.no_grad():
-#         outputs = model(**inputs)
-#     # Average pooling to get a single vector for the sentence
-#     return outputs.last_hidden_state.mean(dim=1).numpy()
 
 def get_embedding(sentence):
     return model.encode(sentence)
@@ -38,7 +31,6 @@ def cosine_similarity(vec_a, vec_b):
 
 @app.route('/similarity', methods=['POST'])
 def calculate_similarity():
-    print("hey is working")
     data = request.get_json()
     question = data.get('question')
     answer = data.get('answer')
@@ -46,18 +38,19 @@ def calculate_similarity():
     vec_question = get_embedding(question)
     vec_answer = get_embedding(answer)
 
+    # Calculate a cosine similarity score and associated rating
     similarity_score = cosine_similarity(vec_question, vec_answer)
-
     similarity_rating = calculateSimilarityRating(float(similarity_score))
 
     return jsonify({
     'message': 'Cosine Similarity Calculated',
-    'similarityScore': float(similarity_score),  # Convert to Python float
+    'similarityScore': float(similarity_score),
     'similarityRating': similarity_rating,
     'question': question,
     'answer': answer
 })
 
+# Calculates and returns the similarity score qualitative rating
 def calculateSimilarityRating(similarityScore):
     if similarityScore < 0.2:
         return "Very Not Similar"
@@ -71,4 +64,4 @@ def calculateSimilarityRating(similarityScore):
         return "Very Similar"
 
 if __name__ == '__main__':
-    app.run(port=5002)  # Run on a different port
+    app.run(port=5002)
