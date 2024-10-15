@@ -53,15 +53,15 @@ def calculate_similarity():
 # Calculates and returns the similarity score qualitative rating
 def calculateSimilarityRating(similarityScore):
     if similarityScore < 0.2:
-        return "Very Not Similar"
+        return "Very Dissimilar"
     elif similarityScore < 0.4:
-        return "Not Similar"
+        return "Dissimilar"
     elif similarityScore < 0.6:
-        return "Somewhat Similar"
-    elif similarityScore < 0.8:
         return "Similar"
-    else:
+    elif similarityScore < 1.0:
         return "Very Similar"
+    else:
+        return "Identical"
 
 if __name__ == '__main__':
     app.run(port=5002)
