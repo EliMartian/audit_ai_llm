@@ -9,38 +9,70 @@ const ContentChecker: React.FC = () => {
   const [similarityRating, setSimilarityRating] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSimilarityModalOpen, setIsSimilarityModalOpen] = useState(false); // Pop-up ? visibility screen for Similarity Explanation
+  const [searchResults, setSearchResults] = useState<any[]>([]); // Stores Google Search API results
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-  
+  // Helper function to fetch similarity score
+  const fetchSimilarity = async (question: string, answer: string) => {
+    // Create payload with QA pair
     const payload = {
       question,
       answer
-    };
-  
+    };  
+
     try {
-      const response = await fetch('http://localhost:5001/new_prompt', {
+      const response = await fetch('http://localhost:5001/prompt_similarity', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ question, answer }),
       });
-  
-      if (!response.ok) {
-        throw new Error('Error occurred while submitting the form');
-      }
-  
-      const data = await response.json();
 
-      // Set the score and rating state based on the similarity backend response
-      setSimilarityScore(parseFloat(data.similarityScore.toFixed(2))); // Round score to 2 decimal places
+      if (!response.ok) {
+        throw new Error('Error occurred while fetching similarity');
+      }
+
+      const data = await response.json();
+      setSimilarityScore(parseFloat(data.similarityScore.toFixed(2)));
       setSimilarityRating(data.similarityRating);
-      // Clear out any previous errors
-      setError(null); 
+      setError(null);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching similarity:', error);
+      setError('Error calculating similarity');
     }
+  };
+
+  // Helper function to fetch search results
+  const fetchSearchResults = async (query: string) => {
+    try {
+      const response = await fetch('http://localhost:5001/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error occurred while fetching search results');
+      }
+
+      const data = await response.json();
+      console.log("data response")
+      console.log(data)
+      console.log(data.searchResults)
+      setSearchResults(data.searchResults);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching search results:', error);
+      setError('Error retrieving search results');
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await fetchSimilarity(question, answer);
+    await fetchSearchResults(question);
   };
 
   // Handles similarity modal visibility to update display for users
