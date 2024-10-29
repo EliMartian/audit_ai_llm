@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faQuestionCircle } from '@fortawesome/free-solid-svg-icons';
 
@@ -58,9 +58,6 @@ const ContentChecker: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log("data response")
-      console.log(data)
-      console.log(data.searchResults)
       setSearchResults(data.searchResults);
       setError(null);
     } catch (error) {
@@ -171,6 +168,20 @@ const ContentChecker: React.FC = () => {
             />
           </div>
         )}
+
+        {/* Display Search Result Titles */}
+        <div className="mt-6">
+          {searchResults.length > 0 && (
+            <div>
+              {searchResults.map((result, index) => (
+                <div key={index} className="mt-2 p-3 border rounded-md bg-blue-100 bg-opacity-70 text-black">
+                  {result.title}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
 
         {/* Display any error from the backend */}
         {error && (
