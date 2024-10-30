@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faQuestionCircle } from '@fortawesome/free-solid-svg-icons';
+import { faQuestionCircle, faLink } from '@fortawesome/free-solid-svg-icons';
 
 const ContentChecker: React.FC = () => {
   const [question, setQuestion] = useState('');
@@ -118,9 +118,36 @@ const ContentChecker: React.FC = () => {
             max="10"
             value={resultsToShow}
             onChange={(e) => setResultsToShow(Number(e.target.value))}
-            className="w-full accent-blue-500"
+            className="w-full accent-blue-500 appearance-none h-2 rounded-lg bg-gray-200"
+            style={{
+              accentColor: "#3b82f6",
+              cursor: "pointer",
+            }}
           />
-          <p className="text-center">{resultsToShow}</p>
+          <style>{`
+            input[type="range"]::-webkit-slider-thumb {
+              appearance: none;
+              height: 20px;
+              width: 20px;
+              background-color: #3b82f6; /* Blue color matching the submit button */
+              border-radius: 50%;
+              transition: transform 0.2s ease;
+            }
+            input[type="range"]::-webkit-slider-thumb:hover {
+              transform: scale(1.2); /* Enlarges thumb on hover */
+            }
+            input[type="range"]::-moz-range-thumb {
+              height: 20px;
+              width: 20px;
+              background-color: #3b82f6;
+              border-radius: 50%;
+              transition: transform 0.2s ease;
+            }
+            input[type="range"]::-moz-range-thumb:hover {
+              transform: scale(1.2);
+            }
+          `}</style>
+          <p className="text-center text-blue-500 text-lg font-semibold mt-2">{resultsToShow}</p>
         </div>
 
         <button
@@ -139,7 +166,7 @@ const ContentChecker: React.FC = () => {
             {/* If the question and answer pair are dissimilar, display the similarity score in red. Otherwise if similiar
                 display the similarity score in green. Also displays score as a percentage for ease of clarity for user. */}
             <p className={`mt-2 ${similarityScore < 0.4 ? 'text-red-600' : 'text-green-600'}`}>
-              Similarity Score: {(similarityScore * 100) + "%"}
+              Similarity Score: {parseFloat((similarityScore * 100).toFixed(2)) + "%"}
               <span 
                 className="ml-2 relative group cursor-pointer" 
                 onClick={toggleModal}
@@ -189,8 +216,16 @@ const ContentChecker: React.FC = () => {
           {searchResults.length > 0 && (
             <div>
               {searchResults.slice(0, resultsToShow).map((result, index) => (
-                <div key={index} className="mt-2 p-3 border rounded-md bg-blue-100 bg-opacity-70 text-black">
-                  {result.title}
+                <div key={index} className="mt-2 p-3 border rounded-md bg-blue-100 bg-opacity-70 text-black flex items-center">
+                  <span className="flex-grow">{result.title}</span>
+                  <a
+                    href={result.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 ml-2 hover:underline flex items-center"
+                  >
+                    <FontAwesomeIcon icon={faLink} className="w-5 h-5" /> {/* Icon with Tailwind size */}
+                  </a>
                 </div>
               ))}
             </div>
