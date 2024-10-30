@@ -10,6 +10,7 @@ const ContentChecker: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSimilarityModalOpen, setIsSimilarityModalOpen] = useState(false); // Pop-up ? visibility screen for Similarity Explanation
   const [searchResults, setSearchResults] = useState<any[]>([]); // Stores Google Search API results
+  const [resultsToShow, setResultsToShow] = useState(5); // Slider value state
 
   // Helper function to fetch similarity score
   const fetchSimilarity = async (question: string, answer: string) => {
@@ -108,6 +109,20 @@ const ContentChecker: React.FC = () => {
           />
         </div>
 
+        {/* Slider for results count that the user wants to use for auditing their QA pair*/}
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-2">Number of Sources To Search:</label>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            value={resultsToShow}
+            onChange={(e) => setResultsToShow(Number(e.target.value))}
+            className="w-full accent-blue-500"
+          />
+          <p className="text-center">{resultsToShow}</p>
+        </div>
+
         <button
           type="submit"
           className="w-full py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300"
@@ -173,7 +188,7 @@ const ContentChecker: React.FC = () => {
         <div className="mt-6">
           {searchResults.length > 0 && (
             <div>
-              {searchResults.map((result, index) => (
+              {searchResults.slice(0, resultsToShow).map((result, index) => (
                 <div key={index} className="mt-2 p-3 border rounded-md bg-blue-100 bg-opacity-70 text-black">
                   {result.title}
                 </div>
