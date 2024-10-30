@@ -19,6 +19,7 @@ router.post('/', async (req, res) => {
     res.json({
       message: 'Cosine Similarity Retrieved from Microservice',
       similarityScore: response.data.similarityScore,
+      rougeLScore: response.data.rougeLScore,
       similarityRating: response.data.similarityRating,
       question,
       answer,
