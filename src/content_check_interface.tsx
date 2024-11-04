@@ -11,6 +11,12 @@ const ContentChecker: React.FC = () => {
   const [isSimilarityModalOpen, setIsSimilarityModalOpen] = useState(false); // Pop-up ? visibility screen for Similarity Explanation
   const [searchResults, setSearchResults] = useState<any[]>([]); // Stores Google Search API results
   const [resultsToShow, setResultsToShow] = useState(5); // Slider value state
+  const [sentiment, setSentiment] = useState<SentimentData | null>(null);
+
+  interface SentimentData {
+    question_sentiment: string;
+    answer_sentiment: string;
+  }
 
   // Helper function to fetch similarity score
   const fetchSimilarity = async (question: string, answer: string) => {
@@ -43,6 +49,36 @@ const ContentChecker: React.FC = () => {
     }
   };
 
+  // Helper function to fetch similarity score
+  const fetchSentiment = async (question: string, answer: string) => {
+    // Create payload with QA pair
+    const payload = {
+      question,
+      answer
+    };  
+
+    try {
+      const response = await fetch('http://localhost:5001/prompt_sentiment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question, answer }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error occurred while fetching sentiment');
+      }
+
+      const data: SentimentData = await response.json();
+      setSentiment(data);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching QA pair sentiment:', error);
+      setError('Error calculating sentiment');
+    }
+  };
+
   // Helper function to fetch search results
   const fetchSearchResults = async (query: string) => {
     try {
@@ -70,6 +106,7 @@ const ContentChecker: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     await fetchSimilarity(question, answer);
+    await fetchSentiment(question, answer);
     await fetchSearchResults(question);
   };
 
@@ -208,6 +245,15 @@ const ContentChecker: React.FC = () => {
               className="fixed inset-0 bg-black opacity-5"
               onClick={toggleModal}
             />
+          </div>
+        )}
+
+        {/* Display sentiment analysis */}
+        {sentiment && (
+          <div className="mt-6 p-4 border rounded-lg bg-blue-100 text-blue-700">
+            <h2 className="text-xl font-bold text-blue-700">Sentiment Analysis</h2>
+            <p className="mt-2 text-blue-600">Question Sentiment: {sentiment.question_sentiment}</p>
+            <p className="mt-2 text-blue-600">Answer Sentiment: {sentiment.answer_sentiment}</p>
           </div>
         )}
 

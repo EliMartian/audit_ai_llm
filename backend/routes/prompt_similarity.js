@@ -6,10 +6,6 @@ const router = express.Router();
 router.post('/', async (req, res) => {
   const { question, answer } = req.body;
 
-  console.log("we received that question and answer pair well")
-  console.log(question)
-  console.log(answer)
-
   try {
     const response = await axios.post('http://127.0.0.1:5002/similarity', {
       question,

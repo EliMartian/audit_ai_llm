@@ -21,11 +21,13 @@ app.options('*', cors(corsOptions));  // Handle preflight requests
 app.use(bodyParser.json());
 
 // Import Routes
-const promptRoutes = require('./routes/prompt_similarity');
+const similarityRoutes = require('./routes/prompt_similarity');
 const searchRoutes = require('./routes/search');
+const sentimentRoutes = require('./routes/prompt_sentiment');
 
-app.use('/prompt_similarity', promptRoutes);
+app.use('/prompt_similarity', similarityRoutes);
 app.use('/search', searchRoutes);
+app.use('/prompt_sentiment', sentimentRoutes)
 
 const PORT = process.env.PORT || 5001;
 
