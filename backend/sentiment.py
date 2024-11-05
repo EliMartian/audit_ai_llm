@@ -49,7 +49,7 @@ def get_sentiment(text):
     
     sentiment = emotion_sentiment_mapping[top_emotion]
     
-    return sentiment
+    return sentiment, top_emotion
 
 @app.route('/sentiment', methods=['POST'])
 def analyze_sentiment():
@@ -60,14 +60,16 @@ def analyze_sentiment():
     answer = data.get("answer", "")
     
     # Calculate sentiment for question and answer
-    question_sentiment = get_sentiment(question)
-    answer_sentiment = get_sentiment(answer)
+    question_sentiment, question_emotion = get_sentiment(question)
+    answer_sentiment, answer_emotion = get_sentiment(answer)
     
     # Return the sentiments as a JSON response
     return jsonify({
         'message': 'Sentiment Analysis Calculated',
         'question_sentiment': question_sentiment,
+        'question_emotion': question_emotion,
         'answer_sentiment': answer_sentiment,
+        'answer_emotion': answer_emotion,
         'question': question,
         'answer': answer
     })

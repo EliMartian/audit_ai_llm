@@ -14,8 +14,13 @@ const ContentChecker: React.FC = () => {
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
 
   interface SentimentData {
-    question_sentiment: string;
-    answer_sentiment: string;
+    message: String;
+    question_sentiment: String;
+    question_emotion: String;
+    answer_sentiment: String;
+    answer_emotion: String;
+    question: String;
+    answer: String;
   }
 
   // Helper function to fetch similarity score
@@ -250,10 +255,50 @@ const ContentChecker: React.FC = () => {
 
         {/* Display sentiment analysis */}
         {sentiment && (
-          <div className="mt-6 p-4 border rounded-lg bg-blue-100 text-blue-700">
+          <div className="mt-6 p-4 border rounded-lg bg-blue-100">
             <h2 className="text-xl font-bold text-blue-700">Sentiment Analysis</h2>
-            <p className="mt-2 text-blue-600">Question Sentiment: {sentiment.question_sentiment}</p>
-            <p className="mt-2 text-blue-600">Answer Sentiment: {sentiment.answer_sentiment}</p>
+
+            {/* Determine color based on question sentiment */}
+            <p className={`mt-2 ${
+              sentiment.question_sentiment === 'positive' 
+                ? 'text-green-600' 
+                : sentiment.question_sentiment === 'negative' 
+                ? 'text-red-600' 
+                : 'text-blue-600'
+            }`}>
+              Question Sentiment: {sentiment.question_sentiment}
+            </p>
+            
+            {/* Question emotion remains the same color as sentiment */}
+            <p className={`mt-2 ${
+              sentiment.question_sentiment === 'positive' 
+                ? 'text-green-600' 
+                : sentiment.question_sentiment === 'negative' 
+                ? 'text-red-600' 
+                : 'text-blue-600'
+            }`}>
+              Question Emotion: {sentiment.question_emotion}
+            </p>
+
+            <p className={`mt-2 ${
+              sentiment.answer_sentiment === 'positive' 
+                ? 'text-green-600' 
+                : sentiment.answer_sentiment === 'negative' 
+                ? 'text-red-600' 
+                : 'text-blue-600'
+            }`}>
+              Answer Sentiment: {sentiment.answer_sentiment}
+            </p>
+            
+            <p className={`mt-2 ${
+              sentiment.answer_sentiment === 'positive' 
+                ? 'text-green-600' 
+                : sentiment.answer_sentiment === 'negative' 
+                ? 'text-red-600' 
+                : 'text-blue-600'
+            }`}>
+              Answer Emotion: {sentiment.answer_emotion}
+            </p>
           </div>
         )}
 

@@ -15,7 +15,9 @@ router.post('/', async (req, res) => {
     res.json({
       message: 'Sentiment Analysis Retrieved from Microservice',
       question_sentiment: response.data.question_sentiment,
+      question_emotion: response.data.question_emotion,
       answer_sentiment: response.data.answer_sentiment,
+      answer_emotion: response.data.answer_emotion,
       question,
       answer,
     });
