@@ -50,7 +50,7 @@ def calculate_similarity():
 
     # Calculate a cosine similarity score and associated rating
     similarity_score = cosine_similarity(vec_question, vec_answer)
-    similarity_rating = calculateSimilarityRating(float(similarity_score))
+    similarity_rating, similarity_sentence = calculateSimilarityRating(float(similarity_score))
 
     # Calculate ROUGE-L score
     rouge_l_score = calculate_rouge_l(question, answer)
@@ -60,22 +60,42 @@ def calculate_similarity():
     'similarityScore': float(similarity_score),
     'rougeLScore': float(rouge_l_score),
     'similarityRating': similarity_rating,
+    'similaritySentence': similarity_sentence,
     'question': question,
     'answer': answer
 })
 
+@app.route('/source_similarity', methods=['POST'])
+def calculate_source_similarity():
+    data = request.get_json()
+    question = data.get('question')
+    source = data.get('source')
+    
+    vec_question = get_embedding(question)
+    vec_source = get_embedding(source)
+
+    # Calculate a cosine similarity score and associated rating
+    similarity_score = cosine_similarity(vec_question, vec_source)
+
+    return jsonify({
+    'similarityScore': float(similarity_score),
+    'question': question,
+    'source': source
+})
+
 # Calculates and returns the similarity score qualitative rating
 def calculateSimilarityRating(similarityScore):
+    print(f"similarity score: {similarityScore}")
     if similarityScore < 0.2:
-        return "Very Dissimilar"
+        return "Very Dissimilar", "The question asked is very dissimlar to the answer received"
     elif similarityScore < 0.4:
-        return "Dissimilar"
+        return "Dissimilar", "The question asked is dissimilar to the answer received"
     elif similarityScore < 0.6:
-        return "Similar"
+        return "Similar", "The question asked is similar to the answer received"
     elif similarityScore < 1.0:
-        return "Very Similar"
+        return "Very Similar", "The question asked is very similar to the answer received"
     else:
-        return "Identical"
+        return "Identical", "The question asked and the answer received are identical"
 
 if __name__ == '__main__':
     app.run(port=5002)

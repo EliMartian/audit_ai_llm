@@ -48,6 +48,10 @@ def get_sentiment(text):
         raise ValueError(f"Emotion '{top_emotion}' not found in sentiment mapping.")
     
     sentiment = emotion_sentiment_mapping[top_emotion]
+
+    # Capitalize the first letter of sentiment and top_emotion for consistency
+    sentiment = sentiment.capitalize()
+    top_emotion = top_emotion.capitalize()
     
     return sentiment, top_emotion
 
