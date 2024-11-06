@@ -7,10 +7,13 @@ const ContentChecker: React.FC = () => {
   const [answer, setAnswer] = useState('');
   const [similarityScore, setSimilarityScore] = useState<number | null>(null);
   const [similarityRating, setSimilarityRating] = useState<string>('');
+  const [similaritySentence, setSimilaritySentence] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSimilarityModalOpen, setIsSimilarityModalOpen] = useState(false); // Pop-up ? visibility screen for Similarity Explanation
   const [searchResults, setSearchResults] = useState<any[]>([]); // Stores Google Search API results
+  const [clickedIndices, setClickedIndices] = useState<number[]>([]); // State to track multiple clicked results
   const [resultsToShow, setResultsToShow] = useState(5); // Slider value state
+  const [similarityScores, setSimilarityScores] = useState<{ [key: number]: number | null }>({});
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
 
   interface SentimentData {
@@ -21,6 +24,11 @@ const ContentChecker: React.FC = () => {
     answer_emotion: String;
     question: String;
     answer: String;
+  }
+
+  interface SearchResult {
+    title: string;
+    link: string;
   }
 
   // Helper function to fetch similarity score
@@ -45,8 +53,9 @@ const ContentChecker: React.FC = () => {
       }
 
       const data = await response.json();
-      setSimilarityScore(parseFloat(data.similarityScore.toFixed(2)));
+      setSimilarityScore(parseFloat(data.similarityScore));
       setSimilarityRating(data.similarityRating);
+      setSimilaritySentence(data.similaritySentence);
       setError(null);
     } catch (error) {
       console.error('Error fetching similarity:', error);
@@ -115,8 +124,80 @@ const ContentChecker: React.FC = () => {
     await fetchSearchResults(question);
   };
 
+  // Function to handle audit button click
+  const handleAuditClick = () => {
+    const selectedTitles = [];
+    for (let i = 0; i < clickedIndices.length; i++) {
+      const index = clickedIndices[i];
+      console.log(searchResults[index].title)
+      console.log(searchResults[index].link)
+      selectedTitles.push(searchResults[index].title);
+    }
+    console.log('Selected Articles for Audit:', selectedTitles);
+  };
+
+  // Function to fetch similarity score between question and source
+  const fetchSourceSimilarity = async (question: string, source: string) => {
+    try {
+      const response = await fetch('http://localhost:5001/prompt_similarity/sources', {
+        method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ question, source }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error occurred while fetching search results');
+      }
+
+      const data = await response.json();
+      
+      setError(null);
+      return data.similarityScore
+    } catch (error) {
+      console.error('Error fetching source similarity:', error);
+      return null;
+    }
+  };
+
+  const calculateSimilarityForResults = async () => {
+    const scores = await Promise.all(
+      searchResults.map((result, index) =>
+        fetchSourceSimilarity(question, result.title).then(score => ({
+          index,
+          score,
+        }))
+      )
+    );
+
+    // Update state with the similarity scores
+    const scoresMap = scores.reduce((acc, { index, score }) => {
+      acc[index] = score;
+      return acc;
+    }, {} as { [key: number]: number | null });
+
+    setSimilarityScores(scoresMap);
+  };
+
+  // Trigger the similarity check when component mounts or search results change
+  React.useEffect(() => {
+    if (searchResults.length > 0) {
+      calculateSimilarityForResults();
+    }
+  }, [searchResults]);
+
   // Handles similarity modal visibility to update display for users
   const toggleModal = () => setIsSimilarityModalOpen(!isSimilarityModalOpen);
+
+  // Function to toggle clicked state for a given index
+  const handleResultClick = (index: number) => {
+    setClickedIndices((prevIndices) =>
+      prevIndices.includes(index)
+        ? prevIndices.filter((i) => i !== index) // Remove index if it's already clicked (toggle off)
+        : [...prevIndices, index] // Add index if it's not clicked (toggle on)
+    );
+  };
 
   return (
     <div className="max-w-lg mx-auto mt-10 p-6 border rounded-lg shadow-lg bg-white">
@@ -132,7 +213,7 @@ const ContentChecker: React.FC = () => {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your prompt here"
+            placeholder="Enter your question here"
             required
           />
         </div>
@@ -207,8 +288,8 @@ const ContentChecker: React.FC = () => {
             </h2>
             {/* If the question and answer pair are dissimilar, display the similarity score in red. Otherwise if similiar
                 display the similarity score in green. Also displays score as a percentage for ease of clarity for user. */}
-            <p className={`mt-2 ${similarityScore < 0.4 ? 'text-red-600' : 'text-green-600'}`}>
-              Similarity Score: {parseFloat((similarityScore * 100).toFixed(2)) + "%"}
+            <p className={`${similarityScore < 0.4 ? 'text-red-800' : 'text-green-800'} mt-1`}>
+              Similarity Rating: {similarityRating}
               <span 
                 className="ml-2 relative group cursor-pointer" 
                 onClick={toggleModal}
@@ -218,7 +299,7 @@ const ContentChecker: React.FC = () => {
               </span>
             </p>
             <p className={`${similarityScore < 0.4 ? 'text-red-800' : 'text-green-800'} mt-1`}>
-              Similarity Rating: {similarityRating}
+              Similarity Sentence: {similaritySentence}
             </p>
           </div>
         )}
@@ -235,7 +316,7 @@ const ContentChecker: React.FC = () => {
               <br></br>
               <p>
                 This score indicates how closely related
-                the question and answer are on a scale from 0 to 100%.
+                the question and answer are based upon understanding the semantic meaning behind each sentence.
               </p>
               <button 
                 onClick={toggleModal}
@@ -260,9 +341,9 @@ const ContentChecker: React.FC = () => {
 
             {/* Determine color based on question sentiment */}
             <p className={`mt-2 ${
-              sentiment.question_sentiment === 'positive' 
+              sentiment.question_sentiment === 'Positive' 
                 ? 'text-green-600' 
-                : sentiment.question_sentiment === 'negative' 
+                : sentiment.question_sentiment === 'Negative' 
                 ? 'text-red-600' 
                 : 'text-blue-600'
             }`}>
@@ -271,9 +352,9 @@ const ContentChecker: React.FC = () => {
             
             {/* Question emotion remains the same color as sentiment */}
             <p className={`mt-2 ${
-              sentiment.question_sentiment === 'positive' 
+              sentiment.question_sentiment === 'Positive' 
                 ? 'text-green-600' 
-                : sentiment.question_sentiment === 'negative' 
+                : sentiment.question_sentiment === 'Negative' 
                 ? 'text-red-600' 
                 : 'text-blue-600'
             }`}>
@@ -281,9 +362,9 @@ const ContentChecker: React.FC = () => {
             </p>
 
             <p className={`mt-2 ${
-              sentiment.answer_sentiment === 'positive' 
+              sentiment.answer_sentiment === 'Positive' 
                 ? 'text-green-600' 
-                : sentiment.answer_sentiment === 'negative' 
+                : sentiment.answer_sentiment === 'Negative' 
                 ? 'text-red-600' 
                 : 'text-blue-600'
             }`}>
@@ -291,9 +372,9 @@ const ContentChecker: React.FC = () => {
             </p>
             
             <p className={`mt-2 ${
-              sentiment.answer_sentiment === 'positive' 
+              sentiment.answer_sentiment === 'Positive' 
                 ? 'text-green-600' 
-                : sentiment.answer_sentiment === 'negative' 
+                : sentiment.answer_sentiment === 'Negative' 
                 ? 'text-red-600' 
                 : 'text-blue-600'
             }`}>
@@ -302,12 +383,18 @@ const ContentChecker: React.FC = () => {
           </div>
         )}
 
-        {/* Display Search Result Titles */}
+        {/* Display Search Result Titles To User */}
         <div className="mt-6">
           {searchResults.length > 0 && (
             <div>
               {searchResults.slice(0, resultsToShow).map((result, index) => (
-                <div key={index} className="mt-2 p-3 border rounded-md bg-blue-100 bg-opacity-70 text-black flex items-center">
+                <div
+                  key={index}
+                  onClick={() => handleResultClick(index)} // Toggle clicked state on click
+                  className={`mt-2 p-3 border rounded-md ${
+                    clickedIndices.includes(index) ? 'bg-blue-300' : 'bg-blue-100'
+                  } bg-opacity-70 text-black flex items-center cursor-pointer`} // Change color on click
+                >
                   <span className="flex-grow">{result.title}</span>
                   <a
                     href={result.link}
@@ -315,10 +402,35 @@ const ContentChecker: React.FC = () => {
                     rel="noopener noreferrer"
                     className="text-blue-600 ml-2 hover:underline flex items-center"
                   >
-                    <FontAwesomeIcon icon={faLink} className="w-5 h-5" /> {/* Icon with Tailwind size */}
+                    <FontAwesomeIcon icon={faLink} className="w-5 h-5" />
                   </a>
+                  {similarityScores[index] !== undefined && (
+                    <div
+                      className={`ml-4 p-2 border rounded-md ${
+                        similarityScores[index] !== null && similarityScores[index]! >= 0.4
+                          ? 'bg-blue-200 text-blue-700'
+                          : 'bg-red-200 text-red-700'
+                      }`}
+                    >
+                      {similarityScores[index] !== null
+                        ? `${(similarityScores[index]! * 100).toFixed(1)}%`
+                        : 'N/A'}
+                    </div>
+                  )}
                 </div>
               ))}
+
+              {/* Only present the option to Audit the Answer using selected sources if the Answer was
+              similar to the original question asked (prevents unwanted behavior and comparisons) */}
+              {similarityScore !== null && similarityScore >= 0.4 && (
+                <button
+                  type="submit"
+                  onClick={handleAuditClick} // Attach the function here
+                  className="w-full py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300"
+                >
+                  Audit Using These Sources
+                </button>
+              )}
             </div>
           )}
         </div>
