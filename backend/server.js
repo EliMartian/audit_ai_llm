@@ -8,7 +8,7 @@ dotenv.config();
 const app = express();
 
 const corsOptions = {
-    origin: 'http://localhost:3000', // Allow requests from your frontend
+    origin: 'http://localhost:3000', // Allow requests from frontend
     methods: 'GET,POST,OPTIONS',     // Specify allowed HTTP methods
     allowedHeaders: ['Content-Type'], // Specify allowed headers
 };
@@ -22,12 +22,15 @@ app.use(bodyParser.json());
 
 // Import Routes
 const similarityRoutes = require('./routes/prompt_similarity');
-const searchRoutes = require('./routes/search');
 const sentimentRoutes = require('./routes/prompt_sentiment');
+const searchRoutes = require('./routes/search');
+const scrapeRoutes = require('./routes/scrape');
 
+// Actually use those routes
 app.use('/prompt_similarity', similarityRoutes);
 app.use('/search', searchRoutes);
 app.use('/prompt_sentiment', sentimentRoutes)
+app.use('/scrape', scrapeRoutes)
 
 const PORT = process.env.PORT || 5001;
 
