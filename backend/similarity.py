@@ -85,7 +85,6 @@ def calculate_source_similarity():
 
 # Calculates and returns the similarity score qualitative rating
 def calculateSimilarityRating(similarityScore):
-    print(f"similarity score: {similarityScore}")
     if similarityScore < 0.2:
         return "Very Dissimilar", "The question asked is very dissimlar to the answer received"
     elif similarityScore < 0.4:

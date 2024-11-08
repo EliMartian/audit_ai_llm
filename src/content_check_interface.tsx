@@ -15,6 +15,13 @@ const ContentChecker: React.FC = () => {
   const [resultsToShow, setResultsToShow] = useState(5); // Slider value state
   const [similarityScores, setSimilarityScores] = useState<{ [key: number]: number | null }>({});
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
+  const [auditClicked, setAuditClicked] = useState(false);
+  const [selectedSources, setSelectedSources] = useState<{
+    title: string; // Title of the source
+    link: string; // URL of the source
+    topSentences: [number, string][]; // Array of top sentences with their associated similarity scores
+  }[]>([]);
+
 
   interface SentimentData {
     message: String;
@@ -26,19 +33,8 @@ const ContentChecker: React.FC = () => {
     answer: String;
   }
 
-  interface SearchResult {
-    title: string;
-    link: string;
-  }
-
-  // Helper function to fetch similarity score
+  // Fetches similarity score using cosine similarity and word / sentence embeddings
   const fetchSimilarity = async (question: string, answer: string) => {
-    // Create payload with QA pair
-    const payload = {
-      question,
-      answer
-    };  
-
     try {
       const response = await fetch('http://localhost:5001/prompt_similarity', {
         method: 'POST',
@@ -63,14 +59,8 @@ const ContentChecker: React.FC = () => {
     }
   };
 
-  // Helper function to fetch similarity score
+  // Fetches sentiment score using Go Emotions dataset
   const fetchSentiment = async (question: string, answer: string) => {
-    // Create payload with QA pair
-    const payload = {
-      question,
-      answer
-    };  
-
     try {
       const response = await fetch('http://localhost:5001/prompt_sentiment', {
         method: 'POST',
@@ -93,7 +83,7 @@ const ContentChecker: React.FC = () => {
     }
   };
 
-  // Helper function to fetch search results
+  // Fetches search results using Google Search API
   const fetchSearchResults = async (query: string) => {
     try {
       const response = await fetch('http://localhost:5001/search', {
@@ -117,6 +107,7 @@ const ContentChecker: React.FC = () => {
     }
   };
 
+  // Handles the submit button for initial QA pair
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     await fetchSimilarity(question, answer);
@@ -124,19 +115,61 @@ const ContentChecker: React.FC = () => {
     await fetchSearchResults(question);
   };
 
-  // Function to handle audit button click
-  const handleAuditClick = () => {
-    const selectedTitles = [];
+  // Scrapes the website url provided using Beautiful Soup and other parsing methods
+  const scrapeWebsite = async (url: string, sentence_bound: number, question: string, answer: string) => {
+    try {
+      const response = await fetch('http://localhost:5001/scrape', {
+        method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url, sentence_bound, question, answer }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error occurred while fetching scrape results');
+      }
+
+      const data = await response.json();
+      
+      setError(null);
+      return data
+    } catch (error) {
+      console.error('Error scraping sources', error);
+      return null;
+    }
+  }
+
+  // Handles audit button click, including collecting the top related sentences to the question
+  // and answer within that selected source
+  const handleAuditClick = async () => {
+    setAuditClicked(true)
+
+    const selectedSources = [];
+    const sentenceBound = countSentences(answer)
+
     for (let i = 0; i < clickedIndices.length; i++) {
       const index = clickedIndices[i];
-      console.log(searchResults[index].title)
-      console.log(searchResults[index].link)
-      selectedTitles.push(searchResults[index].title);
+    
+      try {
+        const data = await scrapeWebsite(searchResults[index].link, sentenceBound, question, answer);
+  
+        // Push the source title and its top 4 sentences to selectedSources array
+        if (data && data.top_related_answer) {
+          selectedSources.push({
+            title: searchResults[index].title,
+            link: searchResults[index].link,
+            topSentences: data.top_related_answer
+          });
+        }
+      } catch (error) {
+        console.error(`Error scraping website for ${searchResults[index].title}:`, error);
+      }
     }
-    console.log('Selected Articles for Audit:', selectedTitles);
+    setSelectedSources(selectedSources);
   };
 
-  // Function to fetch similarity score between question and source
+  // Calculates similarity score between question and selected source title
   const fetchSourceSimilarity = async (question: string, source: string) => {
     try {
       const response = await fetch('http://localhost:5001/prompt_similarity/sources', {
@@ -148,7 +181,7 @@ const ContentChecker: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Error occurred while fetching search results');
+        throw new Error('Error occurred while fetching similarity of source result');
       }
 
       const data = await response.json();
@@ -161,6 +194,7 @@ const ContentChecker: React.FC = () => {
     }
   };
 
+  // Calculates the similarity for all search results currently being displayed to the user
   const calculateSimilarityForResults = async () => {
     const scores = await Promise.all(
       searchResults.map((result, index) =>
@@ -171,7 +205,7 @@ const ContentChecker: React.FC = () => {
       )
     );
 
-    // Update state with the similarity scores
+    // Updates the state of similarity scores
     const scoresMap = scores.reduce((acc, { index, score }) => {
       acc[index] = score;
       return acc;
@@ -190,12 +224,20 @@ const ContentChecker: React.FC = () => {
   // Handles similarity modal visibility to update display for users
   const toggleModal = () => setIsSimilarityModalOpen(!isSimilarityModalOpen);
 
+  // Function to count sentences based on the period '.' character (ie delimiter for sentences)
+  const countSentences = (text: string): number => {
+    // Split by period, filter out empty strings, and return the length
+    return text.split('.').filter(sentence => sentence.trim() !== '').length;
+  };
+
   // Function to toggle clicked state for a given index
   const handleResultClick = (index: number) => {
     setClickedIndices((prevIndices) =>
       prevIndices.includes(index)
-        ? prevIndices.filter((i) => i !== index) // Remove index if it's already clicked (toggle off)
-        : [...prevIndices, index] // Add index if it's not clicked (toggle on)
+         // Remove index if it's already clicked (ie toggle off)
+        ? prevIndices.filter((i) => i !== index)
+        // Add index if it's not clicked (ie toggle on)
+        : [...prevIndices, index] 
     );
   };
 
@@ -203,36 +245,33 @@ const ContentChecker: React.FC = () => {
     <div className="max-w-lg mx-auto mt-10 p-6 border rounded-lg shadow-lg bg-white">
       <h1 className="text-2xl font-bold text-center mb-6">AuditAI </h1>
       <form onSubmit={handleSubmit}>
-
-        {/* Designated question location, so that the user can provide their question that they asked to AI (or another source) that
-            they want the associated response they received audited */}
+        {/* Question Section */}
         <div className="mb-4">
           <label htmlFor="question" className="block text-sm font-medium mb-2">Question:</label>
           <textarea
             id="question"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32 overflow-y-auto"
             placeholder="Enter your question here"
             required
           />
         </div>
-
-        {/* Designated answer location, so that the user can provide the answer from AI (or another source) that
-            they wanted audited */}
+  
+        {/* Answer Section */}
         <div className="mb-4">
           <label htmlFor="answer" className="block text-sm font-medium mb-2">Answer:</label>
           <textarea
             id="answer"
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32 overflow-y-auto"
             placeholder="Enter the answer here"
             required
           />
         </div>
-
-        {/* Slider for results count that the user wants to use for auditing their QA pair*/}
+  
+        {/* Range Slider */}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Number of Sources To Search:</label>
           <input
@@ -247,54 +286,25 @@ const ContentChecker: React.FC = () => {
               cursor: "pointer",
             }}
           />
-          <style>{`
-            input[type="range"]::-webkit-slider-thumb {
-              appearance: none;
-              height: 20px;
-              width: 20px;
-              background-color: #3b82f6; /* Blue color matching the submit button */
-              border-radius: 50%;
-              transition: transform 0.2s ease;
-            }
-            input[type="range"]::-webkit-slider-thumb:hover {
-              transform: scale(1.2); /* Enlarges thumb on hover */
-            }
-            input[type="range"]::-moz-range-thumb {
-              height: 20px;
-              width: 20px;
-              background-color: #3b82f6;
-              border-radius: 50%;
-              transition: transform 0.2s ease;
-            }
-            input[type="range"]::-moz-range-thumb:hover {
-              transform: scale(1.2);
-            }
-          `}</style>
           <p className="text-center text-blue-500 text-lg font-semibold mt-2">{resultsToShow}</p>
         </div>
-
+  
         <button
           type="submit"
           className="w-full py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300"
         >
           Submit
         </button>
-
-        {/* Display the similarity score and rating */}
+  
+        {/* Similarity Results */}
         {similarityScore !== null && (
           <div className={`mt-6 p-4 border rounded-lg ${similarityScore < 0.4 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
             <h2 className={`text-xl font-bold ${similarityScore < 0.4 ? 'text-red-700' : 'text-green-700'}`}>
               Similarity Results
             </h2>
-            {/* If the question and answer pair are dissimilar, display the similarity score in red. Otherwise if similiar
-                display the similarity score in green. Also displays score as a percentage for ease of clarity for user. */}
             <p className={`${similarityScore < 0.4 ? 'text-red-800' : 'text-green-800'} mt-1`}>
               Similarity Rating: {similarityRating}
-              <span 
-                className="ml-2 relative group cursor-pointer" 
-                onClick={toggleModal}
-              >
-                {/* Include hoverable ? icon so that users can see the explanation behind the similarity score, ie the Similarity Modal */}
+              <span className="ml-2 relative group cursor-pointer" onClick={toggleModal}>
                 <FontAwesomeIcon icon={faQuestionCircle} className="text-blue-500 hover:text-blue-700" />
               </span>
             </p>
@@ -303,129 +313,73 @@ const ContentChecker: React.FC = () => {
             </p>
           </div>
         )}
-
-        {/* Similarity Modal for brief explanation of how the similarity score was calculated */}
+  
+        {/* Similarity Modal */}
         {isSimilarityModalOpen && (
           <div className="fixed inset-0 flex items-center justify-center z-50">
             <div className="bg-white p-6 border rounded-lg shadow-lg max-w-md mx-auto">
               <h2 className="text-xl font-bold mb-4">How is this calculated?</h2>
-              <p>
-                The similarity score is calculated using the cosine similarity score between
-                the question and the answer.
-              </p>
-              <br></br>
-              <p>
-                This score indicates how closely related
-                the question and answer are based upon understanding the semantic meaning behind each sentence.
-              </p>
-              <button 
-                onClick={toggleModal}
-                className="mt-4 py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300"
-              >
+              <p>The similarity score is calculated using the cosine similarity score between the question and the answer.</p>
+              <p>This score indicates how closely related the question and answer are based upon understanding the semantic meaning behind each sentence.</p>
+              <button onClick={toggleModal} className="mt-4 py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300">
                 Close
               </button>
             </div>
-            {/* Includes a hint of opacity so users have another cue that can visually tell them new content is on the screen, 
-                could be useful for accessibility and ease of use purposes */}
-            <div 
-              className="fixed inset-0 bg-black opacity-5"
-              onClick={toggleModal}
-            />
+            <div className="fixed inset-0 bg-black opacity-5" onClick={toggleModal} />
           </div>
         )}
-
-        {/* Display sentiment analysis */}
+  
+        {/* Sentiment Analysis */}
         {sentiment && (
           <div className="mt-6 p-4 border rounded-lg bg-blue-100">
             <h2 className="text-xl font-bold text-blue-700">Sentiment Analysis</h2>
-
-            {/* Determine color based on question sentiment */}
-            <p className={`mt-2 ${
-              sentiment.question_sentiment === 'Positive' 
-                ? 'text-green-600' 
-                : sentiment.question_sentiment === 'Negative' 
-                ? 'text-red-600' 
-                : 'text-blue-600'
-            }`}>
+            <p className={`mt-2 ${sentiment.question_sentiment === 'Positive' ? 'text-green-600' : sentiment.question_sentiment === 'Negative' ? 'text-red-600' : 'text-blue-600'}`}>
               Question Sentiment: {sentiment.question_sentiment}
             </p>
-            
-            {/* Question emotion remains the same color as sentiment */}
-            <p className={`mt-2 ${
-              sentiment.question_sentiment === 'Positive' 
-                ? 'text-green-600' 
-                : sentiment.question_sentiment === 'Negative' 
-                ? 'text-red-600' 
-                : 'text-blue-600'
-            }`}>
+            <p className={`mt-2 ${sentiment.question_sentiment === 'Positive' ? 'text-green-600' : sentiment.question_sentiment === 'Negative' ? 'text-red-600' : 'text-blue-600'}`}>
               Question Emotion: {sentiment.question_emotion}
             </p>
-
-            <p className={`mt-2 ${
-              sentiment.answer_sentiment === 'Positive' 
-                ? 'text-green-600' 
-                : sentiment.answer_sentiment === 'Negative' 
-                ? 'text-red-600' 
-                : 'text-blue-600'
-            }`}>
+            <p className={`mt-2 ${sentiment.answer_sentiment === 'Positive' ? 'text-green-600' : sentiment.answer_sentiment === 'Negative' ? 'text-red-600' : 'text-blue-600'}`}>
               Answer Sentiment: {sentiment.answer_sentiment}
             </p>
-            
-            <p className={`mt-2 ${
-              sentiment.answer_sentiment === 'Positive' 
-                ? 'text-green-600' 
-                : sentiment.answer_sentiment === 'Negative' 
-                ? 'text-red-600' 
-                : 'text-blue-600'
-            }`}>
+            <p className={`mt-2 ${sentiment.answer_sentiment === 'Positive' ? 'text-green-600' : sentiment.answer_sentiment === 'Negative' ? 'text-red-600' : 'text-blue-600'}`}>
               Answer Emotion: {sentiment.answer_emotion}
             </p>
           </div>
         )}
-
-        {/* Display Search Result Titles To User */}
+  
+        {/* Search Results and Source Content Comparison for Auditing Purposes*/}
         <div className="mt-6">
           {searchResults.length > 0 && (
             <div>
               {searchResults.slice(0, resultsToShow).map((result, index) => (
-                <div
-                  key={index}
-                  onClick={() => handleResultClick(index)} // Toggle clicked state on click
-                  className={`mt-2 p-3 border rounded-md ${
-                    clickedIndices.includes(index) ? 'bg-blue-300' : 'bg-blue-100'
-                  } bg-opacity-70 text-black flex items-center cursor-pointer`} // Change color on click
-                >
-                  <span className="flex-grow">{result.title}</span>
-                  <a
-                    href={result.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 ml-2 hover:underline flex items-center"
-                  >
-                    <FontAwesomeIcon icon={faLink} className="w-5 h-5" />
-                  </a>
-                  {similarityScores[index] !== undefined && (
-                    <div
-                      className={`ml-4 p-2 border rounded-md ${
-                        similarityScores[index] !== null && similarityScores[index]! >= 0.4
-                          ? 'bg-blue-200 text-blue-700'
-                          : 'bg-red-200 text-red-700'
-                      }`}
-                    >
-                      {similarityScores[index] !== null
-                        ? `${(similarityScores[index]! * 100).toFixed(1)}%`
-                        : 'N/A'}
+                <div key={index} onClick={() => handleResultClick(index)} className={`mt-2 p-3 border rounded-md ${clickedIndices.includes(index) ? 'bg-blue-300' : 'bg-blue-100'} bg-opacity-70 text-black cursor-pointer`}>
+                  <div className="flex items-center">
+                    <span className="flex-grow">{result.title}</span>
+                    <a href={result.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 ml-2 hover:underline flex items-center">
+                      <FontAwesomeIcon icon={faLink} className="w-5 h-5" />
+                    </a>
+                    {similarityScores[index] !== undefined && (
+                      <div className={`ml-4 p-2 border rounded-md ${similarityScores[index] !== null && similarityScores[index]! >= 0.4 ? 'bg-blue-200 text-blue-700' : 'bg-red-200 text-red-700'}`}>
+                        {similarityScores[index] !== null ? `${(similarityScores[index]! * 100).toFixed(1)}% match` : 'N/A'}
+                      </div>
+                    )}
+                  </div>
+                  {selectedSources.some((source) => source.title === result.title) && (
+                    <div className="mt-4 pl-4">
+                      {selectedSources.find((source) => source.title === result.title)?.topSentences.map((sentenceData, sentIndex) => (
+                        <div key={sentIndex} className="mb-2 p-2 border rounded-md bg-gray-100">
+                          <span>{sentenceData[1]}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               ))}
-
-              {/* Only present the option to Audit the Answer using selected sources if the Answer was
-              similar to the original question asked (prevents unwanted behavior and comparisons) */}
               {similarityScore !== null && similarityScore >= 0.4 && (
                 <button
                   type="submit"
-                  onClick={handleAuditClick} // Attach the function here
+                  onClick={handleAuditClick}
                   className="w-full py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300"
                 >
                   Audit Using These Sources
@@ -434,9 +388,8 @@ const ContentChecker: React.FC = () => {
             </div>
           )}
         </div>
-
-
-        {/* Display any error from the backend */}
+  
+        {/* Error Message */}
         {error && (
           <div className="mt-6 p-4 border rounded-lg bg-red-100">
             <p className="text-red-600">{error}</p>
