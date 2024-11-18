@@ -27,16 +27,19 @@ def scrape_text(url, sentence_bound, question, answer):
         # Find all p-tags
         p_tags = soup.find_all('p')
         
-        # Initialize a min-heap for the top 5 sentences based on similarity score
-        top_5_sentences = []
+        # Initialize a min-heap for the top 3 sentences based on similarity score
+        top_3_sentences = []
+        # Initialize the most correlated sentence to the answer (to show the user is anything similar to their answer in the source)
+        most_correlated_answer_sentence = ""
+        most_correlated_answer_similarity = 0
 
         # Loop through each p-tag and calculate similarity with the question
         for i, p_tag in enumerate(p_tags):
             p_text = p_tag.get_text()
             
-            # Prepare data for similarity service
-            similarity_payload = {
-                'question': question,
+            # Prepare data for determining sentence similarity to question via microservice
+            similarity_question_payload = {
+                'user_qa_element': question,
                 'source': p_text
             }
             
@@ -44,41 +47,67 @@ def scrape_text(url, sentence_bound, question, answer):
                 # Send POST request to the similarity microservice
                 similarity_response = requests.post(
                     'http://localhost:5002/source_similarity',  # URL for the microservice
-                    json=similarity_payload
+                    json=similarity_question_payload
                 )
                 
                 # Parse the JSON response
                 similarity_data = similarity_response.json()
                 similarity_score = similarity_data.get('similarityScore')
 
-                # Maintain a max heap of the top 5 similarity scores and sentences
-                if len(top_5_sentences) < 5:
-                    heapq.heappush(top_5_sentences, (similarity_score, p_text))
+                # Maintain a max heap of the top 3 similarity scores and sentences
+                if len(top_3_sentences) < 3:
+                    heapq.heappush(top_3_sentences, (similarity_score, p_text))
                 else:
                     # Only push if the new similarity score is higher than the lowest in the heap
-                    if similarity_score > top_5_sentences[0][0]:
-                        heapq.heappushpop(top_5_sentences, (similarity_score, p_text))
+                    if similarity_score > top_3_sentences[0][0]:
+                        heapq.heappushpop(top_3_sentences, (similarity_score, p_text))
             
             except requests.exceptions.RequestException as e:
                 print(f"Error calculating similarity for p tag #{i + 1}: {e}")
 
-            # Stop once we reach the sentence_bound * 2 limit
+            # Prepare data for determining sentence similarity to question via microservice
+            similarity_answer_payload = {
+                'user_qa_element': answer,
+                'source': p_text
+            }
+            
+            try:
+                # Send POST request to the similarity microservice
+                similarity_response = requests.post(
+                    'http://localhost:5002/source_similarity',  # URL for the microservice
+                    json=similarity_answer_payload
+                )
+                
+                # Parse the JSON response
+                similarity_data = similarity_response.json()
+                similarity_score = similarity_data.get('similarityScore')
+
+                # Maintain a max heap of the top 3 similarity scores and sentences
+                if similarity_score > most_correlated_answer_similarity:
+                    most_correlated_answer_similarity = similarity_score
+                    most_correlated_answer_sentence = similarity_data.get('source')
+            
+            except requests.exceptions.RequestException as e:
+                print(f"Error calculating similarity for p tag #{i + 1}: {e}")
+
+            # Stop once we reach the sentence_bound * 15 limit (soup is quite fast at parsing)
+            # 15 was determined to be robust through user testing using a broad selection of topics / source articles
             if i + 1 >= sentence_bound * 15:
                 break
         
         # Extract and combine the first `sentence_bound` p-tags into one paragraph
         paragraph = ' '.join(p.text for p in p_tags[:sentence_bound])
         
-        # Sort the top 5 sentences by score in descending order
-        top_5_sentences = sorted(top_5_sentences, key=lambda x: x[0], reverse=True)
+        # Sort the top 3 sentences by score in descending order
+        top_3_sentences = sorted(top_3_sentences, key=lambda x: x[0], reverse=True)
 
         # Poll the top response and leave the remaining top 4 (this is done to remove the 
         # most similar sentence because it is usually a paraphrase of the original user question, ie not relevant or helpful)
-        top_response = top_5_sentences.pop(0) if top_5_sentences else None
-        remaining_top_4 = [(score, sentence) for score, sentence in top_5_sentences]
+        top_response = top_3_sentences.pop(0) if top_3_sentences else None
+        top_2_correlated_question_sentences = [(score, sentence) for score, sentence in top_3_sentences]
 
-        # Return the combined paragraph and top 5 sentences with scores
-        return paragraph, remaining_top_4
+        # Return the most correlated answer sentence and top 2 most correlated question sentences with scores
+        return most_correlated_answer_sentence, top_2_correlated_question_sentences
 
     except requests.exceptions.RequestException as e:
         print(f"An error occurred while fetching the URL: {e}")
@@ -100,13 +129,13 @@ def scrape_website():
     # to keep time complexity reasonable and a function of the original answer provided (ie short
     # answers might receive a somewhat shorter excerpts / top content than a lengthy more
     # substantial answer might get)
-    related_question_text_excerpt, top_related_answer = scrape_text(url, sentence_bound, question, answer)
+    most_correlated_answer_sentence,  top_2_correlated_question_sentences = scrape_text(url, sentence_bound, question, answer)
     
     # Return the excerpt and top related content as a JSON response
     return jsonify({
         'message': 'Source Successfully Scraped',
-        'related_question_text_excerpt': related_question_text_excerpt,
-        'top_related_answer': top_related_answer
+        'most_correlated_answer_sentence': most_correlated_answer_sentence,
+        'top_2_correlated_question_sentences': top_2_correlated_question_sentences
     })
 
 if __name__ == '__main__':
