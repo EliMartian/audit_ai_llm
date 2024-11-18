@@ -11,9 +11,14 @@ def scrape_text(url, sentence_bound, question, answer):
         # Check if "reddit" is in the URL to avoid scraping
         if "reddit" in url or "r/" in url:
             raise ValueError("Scraping Reddit URLs is not allowed to avoid potential bans.")
+
+        # Simulates being a web user (at a very low level) but could bypass simple attempts to prevent web scrapers
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        }
         
         # Fetch the content from the URL
-        response = requests.get(url)
+        response = requests.get(url, headers=headers, timeout=3, allow_redirects=True)
         response.raise_for_status()  # Raise an error for bad status codes
         
         # Parse the HTML content with BeautifulSoup
