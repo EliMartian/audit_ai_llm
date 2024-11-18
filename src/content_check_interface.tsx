@@ -184,6 +184,7 @@ const ContentChecker: React.FC = () => {
       }
     }
     setSelectedSources(updatedSelectedSources);
+    setAuditClicked(false)
   };
 
   // Calculates similarity score between question and selected source title
@@ -413,13 +414,20 @@ const ContentChecker: React.FC = () => {
                 </div>
               ))}
               {similarityScore !== null && similarityScore >= 0.4 && (
-                <button
-                  type="submit"
-                  onClick={handleAuditClick}
-                  className="w-full py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300"
-                >
-                  Audit Using These Sources
-                </button>
+                <div className="flex justify-center items-center">
+                {auditClicked ? (
+                  <div className="flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-opacity-50"></div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleAuditClick}
+                    className="w-full py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300"
+                  >
+                    Audit Using These Sources
+                  </button>
+                )}
+                </div>
               )}
             </div>
           )}
