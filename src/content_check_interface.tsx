@@ -16,11 +16,8 @@ const ContentChecker: React.FC = () => {
   const [similarityScores, setSimilarityScores] = useState<{ [key: number]: number | null }>({});
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
   const [auditClicked, setAuditClicked] = useState(false);
-  const [selectedSources, setSelectedSources] = useState<{
-    title: string; // Title of the source
-    link: string; // URL of the source
-    topSentences: [number, string][]; // Array of top sentences with their associated similarity scores
-  }[]>([]);
+  const [selectedSources, setSelectedSources] = useState<Source[]>([]);  // Explicit type for selectedSources
+
 
 
   interface SentimentData {
@@ -31,6 +28,12 @@ const ContentChecker: React.FC = () => {
     answer_emotion: String;
     question: String;
     answer: String;
+  }
+
+  interface Source {
+    title: string;
+    link: string;
+    topSentences: [number, string][];
   }
 
   // Fetches similarity score using cosine similarity and word / sentence embeddings
@@ -131,7 +134,6 @@ const ContentChecker: React.FC = () => {
       }
 
       const data = await response.json();
-      
       setError(null);
       return data
     } catch (error) {
@@ -145,18 +147,33 @@ const ContentChecker: React.FC = () => {
   const handleAuditClick = async () => {
     setAuditClicked(true)
 
-    const selectedSources = [];
+    // Count total number of sentences in the answer to determine how hard we should search
+    // ie reduce unnecessary computation time
     const sentenceBound = countSentences(answer)
+    const updatedSelectedSources = [...selectedSources];
 
     for (let i = 0; i < clickedIndices.length; i++) {
       const index = clickedIndices[i];
+
+      // Check if the source is already in selectedSources before scraping
+      const existingSource = updatedSelectedSources.find(
+        (source) => source.link === searchResults[index].link
+      );
+
+      if (existingSource) {
+        continue;  // Skip the current iteration if the source is already added
+      }
     
       try {
         const data = await scrapeWebsite(searchResults[index].link, sentenceBound, question, answer);
-  
-        // Push the source title and its top 4 sentences to selectedSources array
+        if (!data.top_related_answer) {
+          // If top_related_answer is null, set the top related answer as empty
+          data.top_related_answer = []
+        }
+
+        // Otherwise, push the source title and its top 4 sentences to selectedSources array
         if (data && data.top_related_answer) {
-          selectedSources.push({
+          updatedSelectedSources.push({
             title: searchResults[index].title,
             link: searchResults[index].link,
             topSentences: data.top_related_answer
@@ -166,7 +183,7 @@ const ContentChecker: React.FC = () => {
         console.error(`Error scraping website for ${searchResults[index].title}:`, error);
       }
     }
-    setSelectedSources(selectedSources);
+    setSelectedSources(updatedSelectedSources);
   };
 
   // Calculates similarity score between question and selected source title
@@ -348,12 +365,16 @@ const ContentChecker: React.FC = () => {
           </div>
         )}
   
-        {/* Search Results and Source Content Comparison for Auditing Purposes*/}
+        {/* Search Results and Source Content Comparison for Auditing Purposes */}
         <div className="mt-6">
           {searchResults.length > 0 && (
             <div>
               {searchResults.slice(0, resultsToShow).map((result, index) => (
-                <div key={index} onClick={() => handleResultClick(index)} className={`mt-2 p-3 border rounded-md ${clickedIndices.includes(index) ? 'bg-blue-300' : 'bg-blue-100'} bg-opacity-70 text-black cursor-pointer`}>
+                <div 
+                  key={index} 
+                  onClick={() => handleResultClick(index)} 
+                  className={`mt-2 p-3 border rounded-md ${clickedIndices.includes(index) ? 'bg-blue-300' : 'bg-blue-100'} bg-opacity-70 text-black cursor-pointer`}
+                >
                   <div className="flex items-center">
                     <span className="flex-grow">{result.title}</span>
                     <a href={result.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 ml-2 hover:underline flex items-center">
@@ -365,13 +386,28 @@ const ContentChecker: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  {selectedSources.some((source) => source.title === result.title) && (
+
+                  {/* Check if the source is selected and the index is part of clickedIndices */}
+                  {selectedSources.some((source) => source.title === result.title) && clickedIndices.includes(index) && (
                     <div className="mt-4 pl-4">
-                      {selectedSources.find((source) => source.title === result.title)?.topSentences.map((sentenceData, sentIndex) => (
+                      {/* Find the source based on the title */}
+                      {selectedSources.find((source) => source.title === result.title)?.topSentences?.map((sentenceData, sentIndex) => (
                         <div key={sentIndex} className="mb-2 p-2 border rounded-md bg-gray-100">
                           <span>{sentenceData[1]}</span>
                         </div>
                       ))}
+
+                      {/* Display message if topSentences is null, undefined, or empty */}
+                      {(selectedSources.find((source) => source.title === result.title)?.topSentences === null ||
+                        !selectedSources.find((source) => source.title === result.title)?.topSentences ||
+                        selectedSources.find((source) => source.title === result.title)?.topSentences.length === 0) && (
+                        <div className="mt-2 text-gray-500 flex items-center">
+                          This Selected Source Can't be Summarized
+                          <span className="ml-2 relative group cursor-pointer" onClick={toggleModal}>
+                            <FontAwesomeIcon icon={faQuestionCircle} className="text-blue-500 hover:text-blue-700" />
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -388,6 +424,7 @@ const ContentChecker: React.FC = () => {
             </div>
           )}
         </div>
+
   
         {/* Error Message */}
         {error && (
