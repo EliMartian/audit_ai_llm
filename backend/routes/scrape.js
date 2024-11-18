@@ -18,8 +18,8 @@ router.post('/', async (req, res) => {
     
     res.json({
       message: 'Content Successfully Scraped From Source',
-      related_question_text_excerpt: response.data.related_question_text_excerpt,
-      top_related_answer: response.data.top_related_answer
+      most_correlated_answer_sentence: response.data.most_correlated_answer_sentence,
+      top_2_correlated_question_sentences: response.data.top_2_correlated_question_sentences
     });
   } catch (error) {
     console.error('Error calling scraping service:', error);

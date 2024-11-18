@@ -33,7 +33,8 @@ const ContentChecker: React.FC = () => {
   interface Source {
     title: string;
     link: string;
-    topSentences: [number, string][];
+    topQuestionSentences: [number, string][];
+    topAnswerSentence: [number, string][];
   }
 
   // Fetches similarity score using cosine similarity and word / sentence embeddings
@@ -166,17 +167,18 @@ const ContentChecker: React.FC = () => {
     
       try {
         const data = await scrapeWebsite(searchResults[index].link, sentenceBound, question, answer);
-        if (!data.top_related_answer) {
-          // If top_related_answer is null, set the top related answer as empty
-          data.top_related_answer = []
+        if (!data.top_2_correlated_question_sentences) {
+          // If the top 2 correlated question sentences is null, set the top 2 related question sentences as empty
+          data.top_2_correlated_question_sentences = []
         }
 
         // Otherwise, push the source title and its top 4 sentences to selectedSources array
-        if (data && data.top_related_answer) {
+        if (data) {
           updatedSelectedSources.push({
             title: searchResults[index].title,
             link: searchResults[index].link,
-            topSentences: data.top_related_answer
+            topQuestionSentences: data.top_2_correlated_question_sentences,
+            topAnswerSentence: data.most_correlated_answer_sentence
           });
         }
       } catch (error) {
@@ -391,17 +393,10 @@ const ContentChecker: React.FC = () => {
                   {/* Check if the source is selected and the index is part of clickedIndices */}
                   {selectedSources.some((source) => source.title === result.title) && clickedIndices.includes(index) && (
                     <div className="mt-4 pl-4">
-                      {/* Find the source based on the title */}
-                      {selectedSources.find((source) => source.title === result.title)?.topSentences?.map((sentenceData, sentIndex) => (
-                        <div key={sentIndex} className="mb-2 p-2 border rounded-md bg-gray-100">
-                          <span>{sentenceData[1]}</span>
-                        </div>
-                      ))}
-
-                      {/* Display message if topSentences is null, undefined, or empty */}
-                      {(selectedSources.find((source) => source.title === result.title)?.topSentences === null ||
-                        !selectedSources.find((source) => source.title === result.title)?.topSentences ||
-                        selectedSources.find((source) => source.title === result.title)?.topSentences.length === 0) && (
+                      {/* Display source can't be used message if topQuestionSentences is null, undefined, or empty */}
+                      {(selectedSources.find((source) => source.title === result.title)?.topQuestionSentences === null ||
+                        !selectedSources.find((source) => source.title === result.title)?.topQuestionSentences ||
+                        selectedSources.find((source) => source.title === result.title)?.topQuestionSentences.length === 0) && (
                         <div className="mt-2 text-gray-500 flex items-center">
                           This Selected Source Can't be Summarized
                           <span className="ml-2 relative group cursor-pointer" onClick={toggleModal}>
@@ -409,6 +404,17 @@ const ContentChecker: React.FC = () => {
                           </span>
                         </div>
                       )}
+                      {(selectedSources.find((source) => source.title === result.title)?.topQuestionSentences?.length ?? 0) > 0 && (
+                        <div className="mb-2 p-2 border rounded-md bg-gray-100 font-semibold">
+                          Top Sentences Similar to Your Question:
+                        </div>
+                      )}
+                      {/* Render the most similar sentences to the question */}
+                      {selectedSources.find((source) => source.title === result.title)?.topQuestionSentences?.map((sentenceData, sentIndex) => (
+                        <div key={sentIndex} className="mb-2 p-2 border rounded-md bg-gray-100">
+                          <span>{sentenceData[1]}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

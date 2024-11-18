@@ -68,18 +68,18 @@ def calculate_similarity():
 @app.route('/source_similarity', methods=['POST'])
 def calculate_source_similarity():
     data = request.get_json()
-    question = data.get('question')
+    user_qa_element = data.get('user_qa_element')
     source = data.get('source')
     
-    vec_question = get_embedding(question)
+    vec_user_qa_element = get_embedding(user_qa_element)
     vec_source = get_embedding(source)
 
     # Calculate a cosine similarity score and associated rating
-    similarity_score = cosine_similarity(vec_question, vec_source)
+    similarity_score = cosine_similarity(vec_user_qa_element, vec_source)
 
     return jsonify({
     'similarityScore': float(similarity_score),
-    'question': question,
+    'user_qa_element': user_qa_element,
     'source': source
 })
 

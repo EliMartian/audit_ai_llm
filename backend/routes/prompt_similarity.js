@@ -30,16 +30,17 @@ router.post('/', async (req, res) => {
 // POST route to calculate source similarity between source and answer
 router.post('/sources', async (req, res) => {
   const { question, source } = req.body;
+  user_qa_element = question
 
   try {
     const response = await axios.post('http://127.0.0.1:5002/source_similarity', {
-      question,
+      user_qa_element,
       source
     });
 
     res.json({
       similarityScore: response.data.similarityScore,
-      question,
+      user_qa_element,
       source
     });
   } catch (error) {
