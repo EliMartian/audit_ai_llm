@@ -10,6 +10,7 @@ const ContentChecker: React.FC = () => {
   const [similaritySentence, setSimilaritySentence] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSimilarityModalOpen, setIsSimilarityModalOpen] = useState(false); // Pop-up ? visibility screen for Similarity Explanation
+  const [isSourceModalOpen, setSourceModalOpen] = useState(false); // Pop-up ? visibility screen for Source Can't Be Used Explanation
   const [searchResults, setSearchResults] = useState<any[]>([]); // Stores Google Search API results
   const [clickedIndices, setClickedIndices] = useState<number[]>([]); // State to track multiple clicked results
   const [resultsToShow, setResultsToShow] = useState(5); // Slider value state
@@ -17,9 +18,6 @@ const ContentChecker: React.FC = () => {
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
   const [auditClicked, setAuditClicked] = useState(false);
   const [selectedSources, setSelectedSources] = useState<Source[]>([]);  // Explicit type for selectedSources
-
-
-
   interface SentimentData {
     message: String;
     question_sentiment: String;
@@ -29,7 +27,6 @@ const ContentChecker: React.FC = () => {
     question: String;
     answer: String;
   }
-
   interface Source {
     title: string;
     link: string;
@@ -172,6 +169,11 @@ const ContentChecker: React.FC = () => {
           data.top_2_correlated_question_sentences = []
         }
 
+        if (!data.most_correlated_answer_sentence) {
+          // If the top correlated answer sentence is null, set as empty
+          data.most_correlated_answer_sentence = []
+        }
+
         // Otherwise, push the source title and its top 4 sentences to selectedSources array
         if (data) {
           updatedSelectedSources.push({
@@ -243,6 +245,9 @@ const ContentChecker: React.FC = () => {
 
   // Handles similarity modal visibility to update display for users
   const toggleModal = () => setIsSimilarityModalOpen(!isSimilarityModalOpen);
+
+  // Handles source can't be rendered visibility to update for users
+  const toggleSourceModal = () => setSourceModalOpen(!isSourceModalOpen);
 
   // Function to count sentences based on the period '.' character (ie delimiter for sentences)
   const countSentences = (text: string): number => {
@@ -348,6 +353,24 @@ const ContentChecker: React.FC = () => {
             <div className="fixed inset-0 bg-black opacity-5" onClick={toggleModal} />
           </div>
         )}
+
+        {/* Source Can't Be Used Modal */}
+        {isSourceModalOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="bg-white p-6 border rounded-lg shadow-lg max-w-md mx-auto">
+              <h2 className="text-xl font-bold mb-4">Why can't this source be used?</h2>
+              <p>Some sources have laws and protection against automated website scraping and data use, such as Reddit. 
+                Additionally, some sources might have a website format that doesn't follow standardized practices, and thus can't be used.</p>
+              <br></br>
+              <h2 className="text-xl font-bold mb-4">So what can I do?</h2>
+              <p>Fortunately, you can increase the number of sources searched, and select more sources to audit.</p>
+              <button onClick={toggleSourceModal} className="mt-4 py-2 px-4 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-300">
+                Close
+              </button>
+            </div>
+            <div className="fixed inset-0 bg-black opacity-5" onClick={toggleSourceModal} />
+          </div>
+        )}
   
         {/* Sentiment Analysis */}
         {sentiment && (
@@ -399,7 +422,7 @@ const ContentChecker: React.FC = () => {
                         selectedSources.find((source) => source.title === result.title)?.topQuestionSentences.length === 0) && (
                         <div className="mt-2 text-gray-500 flex items-center">
                           This Selected Source Can't be Summarized
-                          <span className="ml-2 relative group cursor-pointer" onClick={toggleModal}>
+                          <span className="ml-2 relative group cursor-pointer" onClick={toggleSourceModal}>
                             <FontAwesomeIcon icon={faQuestionCircle} className="text-blue-500 hover:text-blue-700" />
                           </span>
                         </div>
@@ -415,6 +438,17 @@ const ContentChecker: React.FC = () => {
                           <span>{sentenceData[1]}</span>
                         </div>
                       ))}
+                      {(selectedSources.find((source) => source.title === result.title)?.topAnswerSentence?.length ?? 0) > 0 && (
+                        <div className="mb-2 p-2 border rounded-md bg-gray-100 font-semibold">
+                          Top Sentence Similar to Your Answer:
+                        </div>
+                      )}
+                      {/* Render the most similar sentence to the answer */}
+                      {(selectedSources.find((source) => source.title === result.title)?.topAnswerSentence?.length ?? 0) > 0 && (
+                        <div className="mb-2 p-2 border rounded-md bg-gray-100">
+                          <span>{selectedSources.find((source) => source.title === result.title)?.topAnswerSentence}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
