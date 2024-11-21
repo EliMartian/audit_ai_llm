@@ -82,7 +82,7 @@ def scrape_text(url, sentence_bound, question, answer):
                 similarity_data = similarity_response.json()
                 similarity_score = similarity_data.get('similarityScore')
 
-                # Maintain a max heap of the top 3 similarity scores and sentences
+                # Maintain the most correlated sentence in the source to the answer
                 if similarity_score > most_correlated_answer_similarity:
                     most_correlated_answer_similarity = similarity_score
                     most_correlated_answer_sentence = similarity_data.get('source')
@@ -94,10 +94,7 @@ def scrape_text(url, sentence_bound, question, answer):
             # 15 was determined to be robust through user testing using a broad selection of topics / source articles
             if i + 1 >= sentence_bound * 15:
                 break
-        
-        # Extract and combine the first `sentence_bound` p-tags into one paragraph
-        paragraph = ' '.join(p.text for p in p_tags[:sentence_bound])
-        
+
         # Sort the top 3 sentences by score in descending order
         top_3_sentences = sorted(top_3_sentences, key=lambda x: x[0], reverse=True)
 
@@ -135,7 +132,8 @@ def scrape_website():
     return jsonify({
         'message': 'Source Successfully Scraped',
         'most_correlated_answer_sentence': most_correlated_answer_sentence,
-        'top_2_correlated_question_sentences': top_2_correlated_question_sentences
+        'top_2_correlated_question_sentences': top_2_correlated_question_sentences,
+        'most_correlated_answer_sentence': most_correlated_answer_sentence
     })
 
 if __name__ == '__main__':
