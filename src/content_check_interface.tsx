@@ -32,6 +32,7 @@ const ContentChecker: React.FC = () => {
     link: string;
     topQuestionSentences: [number, string][];
     topAnswerSentence: [number, string][];
+    summary: string;
   }
 
   // Fetches similarity score using cosine similarity and word / sentence embeddings
@@ -176,13 +177,23 @@ const ContentChecker: React.FC = () => {
 
         // Otherwise, push the source title and its top 4 sentences to selectedSources array
         if (data) {
+          // Extract the top 2 similar question sentence text from the array (not the similarity score)
+          const questionSentences = data.top_2_correlated_question_sentences
+            .map(([score, sentence]: [number, string]) => sentence)
+            .join(' ');
+
+          // Combine question sentences with the answer sentence into one summary (ie to use for summarizing the relevant bits of the whole article)
+          const summary = questionSentences + ' ' + data.most_correlated_answer_sentence;
+
           updatedSelectedSources.push({
             title: searchResults[index].title,
             link: searchResults[index].link,
             topQuestionSentences: data.top_2_correlated_question_sentences,
-            topAnswerSentence: data.most_correlated_answer_sentence
+            topAnswerSentence: data.most_correlated_answer_sentence,
+            summary: summary
           });
         }
+        
       } catch (error) {
         console.error(`Error scraping website for ${searchResults[index].title}:`, error);
       }
