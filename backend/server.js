@@ -8,15 +8,15 @@ dotenv.config();
 const app = express();
 
 const corsOptions = {
-    origin: 'http://localhost:3000', // Allow requests from frontend
-    methods: 'GET,POST,OPTIONS',     // Specify allowed HTTP methods
-    allowedHeaders: ['Content-Type'], // Specify allowed headers
+    origin: '*',
+    methods: 'GET,POST,OPTIONS',
+    allowedHeaders: ['Content-Type'],
 };
 
 app.use(cors(corsOptions));
 
-// Ensure OPTIONS requests are handled properly
-app.options('*', cors(corsOptions));  // Handle preflight requests
+// Ensure all requests are handled properly and avoid CORS errors
+app.options('*', cors(corsOptions));
 
 app.use(bodyParser.json());
 
@@ -25,12 +25,14 @@ const similarityRoutes = require('./routes/prompt_similarity');
 const sentimentRoutes = require('./routes/prompt_sentiment');
 const searchRoutes = require('./routes/search');
 const scrapeRoutes = require('./routes/scrape');
+const factCheckRoutes = require('./routes/fact_check');
 
 // Actually use those routes
 app.use('/prompt_similarity', similarityRoutes);
 app.use('/search', searchRoutes);
 app.use('/prompt_sentiment', sentimentRoutes)
 app.use('/scrape', scrapeRoutes)
+app.use('/fact_check', factCheckRoutes)
 
 const PORT = process.env.PORT || 5001;
 
