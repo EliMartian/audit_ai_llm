@@ -32,7 +32,8 @@ const ContentChecker: React.FC = () => {
     link: string;
     topQuestionSentences: [number, string][];
     topAnswerSentence: [number, string][];
-    summary: string;
+    summary: string[];
+    factualDecision: string;
   }
 
   // Fetches similarity score using cosine similarity and word / sentence embeddings
@@ -141,6 +142,31 @@ const ContentChecker: React.FC = () => {
     }
   }
 
+  // Fact checks the answer by comparing against snippets from provided user source (Internet link)
+  // to see if the answer (claim) is supported by the evidence (source that the user chose and top related sentences to QA Pair being audited)
+  const factCheckAnswer = async (summary: string[], answer: string) => {
+    try {
+      const response = await fetch('http://localhost:5005/fact_check', {
+        method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ summary, answer }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error occurred while fetching fact check results');
+      }
+
+      const data = await response.json();
+      setError(null);
+      return data
+    } catch (error) {
+      console.error('Error fact checking answer using source: ', error);
+      return null;
+    }
+  }
+
   // Handles audit button click, including collecting the top related sentences to the question
   // and answer within that selected source
   const handleAuditClick = async () => {
@@ -175,31 +201,54 @@ const ContentChecker: React.FC = () => {
           data.most_correlated_answer_sentence = []
         }
 
-        // Otherwise, push the source title and its top 4 sentences to selectedSources array
-        if (data) {
+        // Otherwise, if data is valid and can be parsed, push the source title and its top 4 sentences to selectedSources array
+        if (data && data.most_correlated_answer_sentence.length > 0 && data.top_2_correlated_question_sentences.length > 0) {
           // Extract the top 2 similar question sentence text from the array (not the similarity score)
-          const questionSentences = data.top_2_correlated_question_sentences
-            .map(([score, sentence]: [number, string]) => sentence)
-            .join(' ');
+          const questionSentences: string[] = data.top_2_correlated_question_sentences.map(
+            ([score, sentence]: [number, string]) => sentence
+          );
 
           // Combine question sentences with the answer sentence into one summary (ie to use for summarizing the relevant bits of the whole article)
-          const summary = questionSentences + ' ' + data.most_correlated_answer_sentence;
+          const summary: string[] = [...questionSentences, data.most_correlated_answer_sentence];
 
+          // Attempt to fact check the answer
+          try {
+            const fact_data = await factCheckAnswer(summary, answer);
+            const factual_decision = fact_data.fact_check_decision;
+
+            // If a factual_decision can be reached (ie is the answer supported by user's source article or not)
+            // then update selectedSources with corresponding info
+            updatedSelectedSources.push({
+              title: searchResults[index].title,
+              link: searchResults[index].link,
+              topQuestionSentences: data.top_2_correlated_question_sentences,
+              topAnswerSentence: data.most_correlated_answer_sentence,
+              summary: summary,
+              factualDecision: factual_decision
+            });
+              
+          } catch (error) {
+            console.error(`Error fact-checking website for ${searchResults[index].title}:`, error);
+          }
+        } else {
+          // If the article could not be parsed (ie invalid web format, anti-bot scraping detection, etc.), 
+          // Push placeholders for invalid data
           updatedSelectedSources.push({
             title: searchResults[index].title,
             link: searchResults[index].link,
-            topQuestionSentences: data.top_2_correlated_question_sentences,
-            topAnswerSentence: data.most_correlated_answer_sentence,
-            summary: summary
+            topQuestionSentences: [],
+            topAnswerSentence: [],
+            summary: ["No valid data available"],
+            factualDecision: "N/A",
           });
         }
-        
       } catch (error) {
         console.error(`Error scraping website for ${searchResults[index].title}:`, error);
       }
     }
+    // Update selected sources, and end the auditing process (for this cycle)
     setSelectedSources(updatedSelectedSources);
-    setAuditClicked(false)
+    setAuditClicked(false);
   };
 
   // Calculates similarity score between question and selected source title
@@ -458,6 +507,22 @@ const ContentChecker: React.FC = () => {
                       {(selectedSources.find((source) => source.title === result.title)?.topAnswerSentence?.length ?? 0) > 0 && (
                         <div className="mb-2 p-2 border rounded-md bg-gray-100">
                           <span>{selectedSources.find((source) => source.title === result.title)?.topAnswerSentence}</span>
+                        </div>
+                      )}
+                      {/* Render the decision of whether the Source Article supports, or refutes, the Answer being audited in the QA pair */}
+                      {(selectedSources.find((source) => source.title === result.title)?.factualDecision !== undefined) && 
+                        (selectedSources.find((source) => source.title === result.title)?.topQuestionSentences?.length ?? 0) > 0 && (
+                        <div className="mb-2 p-2 border rounded-md bg-gray-100 font-semibold">
+                          The Audited Answer is: 
+                          <span
+                            className={`font-bold ${
+                              selectedSources.find((source) => source.title === result.title)?.factualDecision 
+                                ? 'text-green-800' 
+                                : 'text-red-800'
+                            }`}
+                          >
+                            {selectedSources.find((source) => source.title === result.title)?.factualDecision ? " Supported" : " Refuted"}
+                          </span>
                         </div>
                       )}
                     </div>
