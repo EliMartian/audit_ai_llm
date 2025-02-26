@@ -18,6 +18,7 @@ router.post('/', async (req, res) => {
       summary: response.data.summary,
       answer: response.data.answer,
       fact_check_decision: response.data.fact_check_decision,
+      supporting_set: response.data.supporting_set
     });
   } catch (error) {
     console.error('Error calling fact check service:', error);

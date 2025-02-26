@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from "framer-motion";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faQuestionCircle, faLink } from '@fortawesome/free-solid-svg-icons';
 
@@ -18,6 +19,10 @@ const ContentChecker: React.FC = () => {
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
   const [auditClicked, setAuditClicked] = useState(false);
   const [selectedSources, setSelectedSources] = useState<Source[]>([]);  // Explicit type for selectedSources
+  const [isHighlighted, setIsHighlighted] = useState(false); // Highlights the important snippets of similar info to the user
+  const [isAnimating, setIsAnimating] = useState(false); // Animates the Show Me Where button when clicked
+  var [numSupportingSources, setNumSupportingSources] = useState(0); // Counts the number of sources that support the answer being audited
+  var [numTotalSources, setNumTotalSources] = useState(0); // Counts the total number of sources that were used in the audit process
   interface SentimentData {
     message: String;
     question_sentiment: String;
@@ -33,7 +38,8 @@ const ContentChecker: React.FC = () => {
     topQuestionSentences: [number, string][];
     topAnswerSentence: [number, string][];
     summary: string[];
-    factualDecision: string;
+    factualDecision: boolean;
+    supportingSentences: string[];
   }
 
   // Fetches similarity score using cosine similarity and word / sentence embeddings
@@ -215,16 +221,25 @@ const ContentChecker: React.FC = () => {
           try {
             const fact_data = await factCheckAnswer(summary, answer);
             const factual_decision = fact_data.fact_check_decision;
+            const supporting_sentences = fact_data.supporting_set;
 
-            // If a factual_decision can be reached (ie is the answer supported by user's source article or not)
-            // then update selectedSources with corresponding info
+            // Check if the source was considered factual (ie supporting the answer)
+            if (factual_decision) {
+              // Increment the number of supporting sources for the audited QA pair if so
+              setNumSupportingSources(supportingCount => supportingCount + 1);
+            }
+            // Update the total number of sources examined for the audited QA pair
+            setNumTotalSources(totalCount => totalCount + 1);
+
+            // Update selectedSources with corresponding info for the successful fact check operation
             updatedSelectedSources.push({
               title: searchResults[index].title,
               link: searchResults[index].link,
               topQuestionSentences: data.top_2_correlated_question_sentences,
               topAnswerSentence: data.most_correlated_answer_sentence,
               summary: summary,
-              factualDecision: factual_decision
+              factualDecision: factual_decision,
+              supportingSentences: supporting_sentences
             });
               
           } catch (error) {
@@ -239,7 +254,8 @@ const ContentChecker: React.FC = () => {
             topQuestionSentences: [],
             topAnswerSentence: [],
             summary: ["No valid data available"],
-            factualDecision: "N/A",
+            factualDecision: false,
+            supportingSentences: []
           });
         }
       } catch (error) {
@@ -296,6 +312,56 @@ const ContentChecker: React.FC = () => {
     setSimilarityScores(scoresMap);
   };
 
+  // Live updates the supporting and total sources counts for each new audited QA query
+  const updateSourceCounts = () => {
+    // Store the map of the fact check results given the current clicked indices (selected sources)
+    const factCheckResults = clickedIndices
+      .map((index) => {
+        const clickedTitle = selectedSources[index]?.title; // Get the title from the clicked index
+        if (clickedTitle) {
+          // If the title exists, search for it in selectedSources
+          return selectedSources.find((source) => source.title === clickedTitle);
+        }
+        return undefined;
+      })
+      .filter((source) => source !== undefined); // Filter out irrelevant sources (ie couldn't be parsed)
+  
+    // Update the total and supporting source counts to display to the user
+    setNumTotalSources(factCheckResults.length);
+    setNumSupportingSources(
+      factCheckResults.filter((source) => source?.factualDecision === true).length
+    );
+  };
+
+  // Applies highlighting to display the most similar supporting sentences (ie important facts that the user should read)
+  // within a given sentence, if it supported the Answer being audited
+  const highlightSupportingSentences = (sentence: string, supportingSentences: string[]) => {
+    // If not highlighted, return the original sentence
+    if (!isHighlighted) return sentence;
+
+    // Wrap matching supporting sentences with a green span tag to highlight
+    let highlightedSentence = sentence;
+    supportingSentences.forEach((supporting) => {
+      // Regex to determine match - case-insensitive  (what parts of this sentence match our supporting sentences)
+      const regex = new RegExp(`(${supporting})`, "gi"); 
+      highlightedSentence = highlightedSentence.replace(regex, `<span class="text-green-700">$1</span>`);
+    });
+
+    return highlightedSentence;
+  };
+
+  // Handles when the user clicks the "Show Me Where" button, handling showing the user
+  // where the supporting sentences (in favor of their Answer being audited) are in the 
+  // paragraphs summarizing each source
+  const showMeWhereButtonClick = () => {
+    setIsHighlighted(!isHighlighted);
+    // Does a little wiggle dance to show the button works 
+    setIsAnimating(true);
+    
+    // Stop wiggling after a half-second
+    setTimeout(() => setIsAnimating(false), 500); 
+  };
+
   // Trigger the similarity check when component mounts or search results change
   React.useEffect(() => {
     if (searchResults.length > 0) {
@@ -315,7 +381,8 @@ const ContentChecker: React.FC = () => {
     return text.split('.').filter(sentence => sentence.trim() !== '').length;
   };
 
-  // Function to toggle clicked state for a given index
+  // Toggles the clicked state for a given index, setting a source to be selected
+  // if clicked on by the user
   const handleResultClick = (index: number) => {
     setClickedIndices((prevIndices) =>
       prevIndices.includes(index)
@@ -450,7 +517,52 @@ const ContentChecker: React.FC = () => {
             </p>
           </div>
         )}
-  
+
+        <div>
+          {/* Fact Check Misinformation Section */}
+          {numTotalSources > 0 && clickedIndices.length > 0 && (
+            <div
+              className={`mt-6 p-4 border rounded-lg ${
+                numSupportingSources / numTotalSources >= 0.5 ? 'bg-green-100' : 'bg-red-100'
+              }`}
+            >
+              <h2
+                className={`text-xl font-bold ${
+                  numSupportingSources / numTotalSources >= 0.5 ? 'text-green-700' : 'text-red-700'
+                }`}
+              >
+                Fact Check Results
+              </h2>
+
+              <p
+                className={`mt-2 ${
+                  numSupportingSources / numTotalSources >= 0.5 ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                {numSupportingSources / numTotalSources >= 0.5
+                  ? 'Status: Sources Support the Answer'
+                  : 'Status: Sources Do Not Support the Answer'}
+              </p>
+
+              <p className="mt-2">
+                Supporting Sources: {`${numSupportingSources} / ${numTotalSources}`}
+              </p>
+              <p className="mt-2">
+                Not Supporting Sources: {`${numTotalSources - numSupportingSources} / ${numTotalSources}`}
+              </p>
+
+              <motion.button
+                className="mt-4 px-4 py-2 rounded-lg font-semibold bg-green-600 text-white"
+                onClick={showMeWhereButtonClick}
+                animate={isAnimating ? { scale: [1, 1.2, 1], rotate: [0, -5, 5, -5, 5, 0] } : {}}
+                transition={{ duration: 0.5, ease: "easeInOut" }}
+              >
+                Show Me Where
+              </motion.button>
+            </div>
+          )}
+        </div>
+
         {/* Search Results and Source Content Comparison for Auditing Purposes */}
         <div className="mt-6">
           {searchResults.length > 0 && (
@@ -466,6 +578,14 @@ const ContentChecker: React.FC = () => {
                     <a href={result.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 ml-2 hover:underline flex items-center">
                       <FontAwesomeIcon icon={faLink} className="w-5 h-5" />
                     </a>
+
+                    {/* Extracts domain name of source to display*/}
+                    {result.link && (
+                      <div className="ml-4 p-2 border rounded-md bg-gray-100 text-gray-800">
+                        {new URL(result.link).hostname.replace(/^www\./, '').match(/[^.]+\.(com|org|edu)/)?.[0] || 'Unknown'}
+                      </div>
+                    )}
+
                     {similarityScores[index] !== undefined && (
                       <div className={`ml-4 p-2 border rounded-md ${similarityScores[index] !== null && similarityScores[index]! >= 0.4 ? 'bg-blue-200 text-blue-700' : 'bg-red-200 text-red-700'}`}>
                         {similarityScores[index] !== null ? `${(similarityScores[index]! * 100).toFixed(1)}% match` : 'N/A'}
@@ -473,7 +593,7 @@ const ContentChecker: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Check if the source is selected and the index is part of clickedIndices */}
+                  {/* Checks if the source is selected and the index is part of clickedIndices */}
                   {selectedSources.some((source) => source.title === result.title) && clickedIndices.includes(index) && (
                     <div className="mt-4 pl-4">
                       {/* Display source can't be used message if topQuestionSentences is null, undefined, or empty */}
@@ -492,24 +612,32 @@ const ContentChecker: React.FC = () => {
                           Top Sentences Similar to Your Question:
                         </div>
                       )}
-                      {/* Render the most similar sentences to the question */}
-                      {selectedSources.find((source) => source.title === result.title)?.topQuestionSentences?.map((sentenceData, sentIndex) => (
-                        <div key={sentIndex} className="mb-2 p-2 border rounded-md bg-gray-100">
-                          <span>{sentenceData[1]}</span>
-                        </div>
-                      ))}
+                      {/* Renders the most similar sentences (2 of them) to the question */}
+                      {selectedSources.find((source) => source.title === result.title)?.topQuestionSentences?.map((sentenceData, sentIndex) => {
+                        const source = selectedSources.find((s) => s.title === result.title);
+                        return (
+                          <div key={sentIndex} className="mb-2 p-2 border rounded-md bg-gray-100">
+                            <span dangerouslySetInnerHTML={{
+                              __html: highlightSupportingSentences(sentenceData[1], source?.supportingSentences || [])
+                            }} />
+                          </div>
+                        );
+                      })}
                       {(selectedSources.find((source) => source.title === result.title)?.topAnswerSentence?.length ?? 0) > 0 && (
                         <div className="mb-2 p-2 border rounded-md bg-gray-100 font-semibold">
                           Top Sentence Similar to Your Answer:
                         </div>
                       )}
-                      {/* Render the most similar sentence to the answer */}
+                      {/* Renders the most similar sentence to the answer */}
                       {(selectedSources.find((source) => source.title === result.title)?.topAnswerSentence?.length ?? 0) > 0 && (
                         <div className="mb-2 p-2 border rounded-md bg-gray-100">
                           <span>{selectedSources.find((source) => source.title === result.title)?.topAnswerSentence}</span>
+                          <span dangerouslySetInnerHTML={{
+                            __html: highlightSupportingSentences(selectedSources.find((source) => source.title === result.title)?.topAnswerSentence?.[0]?.[1] ?? "", selectedSources.find((source) => source.title === result.title)?.supportingSentences || [])
+                          }} />
                         </div>
                       )}
-                      {/* Render the decision of whether the Source Article supports, or refutes, the Answer being audited in the QA pair */}
+                      {/* Renders the decision of whether the Source Article supports, or does not support, the Answer being audited in the QA pair */}
                       {(selectedSources.find((source) => source.title === result.title)?.factualDecision !== undefined) && 
                         (selectedSources.find((source) => source.title === result.title)?.topQuestionSentences?.length ?? 0) > 0 && (
                         <div className="mb-2 p-2 border rounded-md bg-gray-100 font-semibold">
@@ -521,7 +649,7 @@ const ContentChecker: React.FC = () => {
                                 : 'text-red-800'
                             }`}
                           >
-                            {selectedSources.find((source) => source.title === result.title)?.factualDecision ? " Supported" : " Refuted"}
+                            {selectedSources.find((source) => source.title === result.title)?.factualDecision ? " Supported" : " Not Supported"}
                           </span>
                         </div>
                       )}
@@ -548,7 +676,6 @@ const ContentChecker: React.FC = () => {
             </div>
           )}
         </div>
-
   
         {/* Error Message */}
         {error && (

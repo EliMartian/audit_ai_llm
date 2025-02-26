@@ -120,12 +120,15 @@ def fact_check_answer():
     # At least 2 points need to be earned to support (so not a repeated piece of evidence, unless that 
     # evidence is extremely compelling), ideally a combination of distinct sentences and compelling sentences
     answerSupported = majorityVoteSupport >= 2
+    # Convert supporting set of sentences back into a list to render to the user
+    supporting_set = list(supporting_set)
 
     return jsonify({
         'message': 'Answer Successfully Fact Checked Using Source',
         'summary': summary,
         'answer': answer,
-        'fact_check_decision': answerSupported
+        'fact_check_decision': answerSupported,
+        'supporting_set': supporting_set
     })
 
 if __name__ == '__main__':
