@@ -29,8 +29,6 @@ const ContentChecker: React.FC = () => {
     question_emotion: String;
     answer_sentiment: String;
     answer_emotion: String;
-    question: String;
-    answer: String;
   }
   interface Source {
     title: string;
